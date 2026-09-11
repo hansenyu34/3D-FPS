@@ -1,0 +1,21 @@
+name: Remove ZombieSpawn release
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/remove-zombiespawn.yml']
+permissions:
+  contents: write
+jobs:
+  remove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Delete the requested release and its attachments
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: hansenyu34/3D-FPS
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api repos/hansenyu34/3D-FPS/releases/386724538 --jq '.tag_name' | grep -Fx 'zombiespawn-archive-20260910'
+          gh api --method DELETE repos/hansenyu34/3D-FPS/releases/386724538
