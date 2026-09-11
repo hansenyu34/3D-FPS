@@ -1,0 +1,46 @@
+name: Upload ZombieSpawn archive
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/upload-zombiespawn.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: upload-zombiespawn-archive
+  cancel-in-progress: false
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Download and verify archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --location --fail --silent --show-error --retry 3 --max-time 1200 'https://drive.usercontent.google.com/download?id=1CaeCoBa5V5dKFsStftnqVe64CROYpoNE&export=download&confirm=t&uuid=03829c3b-bc99-44ae-80ae-8e987d79603c' --output 'FPS-Advanced-ZombieSpawn.zip'
+          python3 - <<'PY'
+          import pathlib, zipfile
+          p = pathlib.Path("FPS-Advanced-ZombieSpawn.zip")
+          assert p.stat().st_size > 100_000_000, "Unexpected download size"
+          with zipfile.ZipFile(p) as z:
+              bad = z.testzip()
+              if bad:
+                  raise RuntimeError(f"Archive CRC failed: {bad}")
+          print(f"ZIP verified: {p.stat().st_size} bytes")
+          PY
+          echo '37a8803eaccd45345613b444cadbeb892f17ef2ae99c3efced11894d224073b4  FPS-Advanced-ZombieSpawn.zip' | sha256sum --check
+          sha256sum 'FPS-Advanced-ZombieSpawn.zip' | tee SHA256SUMS.txt
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TARGET_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gh release view zombiespawn-archive-20260910 >/dev/null 2>&1; then
+            gh release create zombiespawn-archive-20260910 --target "$TARGET_SHA" --title 'FPS Advanced - ZombieSpawn' --notes 'Original ZIP archive imported from the Google Drive file supplied by the repository owner. The ZIP contents are unchanged; the attachment filename is normalized for downloading. SHA256SUMS.txt provides its SHA-256 checksum.' --draft
+          fi
+          gh release upload zombiespawn-archive-20260910 'FPS-Advanced-ZombieSpawn.zip#FPS Advanced - ZombieSpawn.zip' SHA256SUMS.txt --clobber
+          gh release edit zombiespawn-archive-20260910 --draft=false
